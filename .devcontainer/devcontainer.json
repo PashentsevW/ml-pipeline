@@ -1,0 +1,5 @@
+{
+	"name": "ml-pipeline",
+	"context": "..",
+	"dockerFile": "../Dockerfile",
+}
