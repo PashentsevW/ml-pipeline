@@ -1,7 +1,7 @@
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 
-from .manager import createEstimator
+from .manager import exists_estimator, create_estimator
 
 
 class PipelineBuilder(object):
@@ -10,60 +10,46 @@ class PipelineBuilder(object):
         self.config = config
 
     def build(self) -> Pipeline:
-        if not isinstance(self.config['pipeline'], list):
-            raise ValueError
-        return self._parse_pipeline(self.config['pipeline'])
+        return self._parse(self.config)
 
-    @staticmethod
-    def _parse_pipeline(items: list) -> Pipeline:
-        pipeline = []
-        for item in items:
-            if 'pipeline' in item:
-                pipeline.append([item['name'],
-                                 PipelineBuilder._parse_pipeline(item['pipeline'])])
-            elif 'estimator' in item:
-                pipeline.append([item['name'],
-                                 PipelineBuilder._parse_estimator(item['estimator'],
-                                                                  item.get('params', dict()))])
-            else:
-                raise ValueError
-        return Pipeline(steps=pipeline)
+    def _parse(self, config):        
+        if isinstance(config, dict):
 
-    @staticmethod
-    def _parse_estimator(type: str, params: dict) -> BaseEstimator:
-        return createEstimator(type,
-                               **PipelineBuilder._parse_params(params))
-
-    @staticmethod
-    def _parse_params(params: dict) -> dict:
-        for key, val in params.items():
-            if (isinstance(val, dict) 
-                and PipelineBuilder._is_estimator(val)):
-                params[key] = PipelineBuilder._parse_estimator(val['estimator'],
-                                                               val.get('params', dict()))
-            elif isinstance(val, list):
-                values = []
-                for v in val:
-                    if (isinstance(val, dict) 
-                        and PipelineBuilder._is_estimator(v)):
-                        values.append(PipelineBuilder._parse_estimator(v['estimator'],
-                                                                       v.get('params', dict())))
+            if (len(config) == 1 
+                and exists_estimator(list(config)[0])):
+                name = list(config)[0]
+                return create_estimator(name,
+                                        **self._parse(config[name]))
+            
+            params = dict()
+            for name in config:
+                if exists_estimator(name):
+                    raise ValueError
+                
+                value = config[name]
+                if isinstance(value, dict):
+                    params[name] = self._parse(value)
+                elif isinstance(value, list):
+                    params[name] = [self._parse(v) for v in value]
+                else:
+                    if exists_estimator(value):
+                        params[name] = create_estimator(value, **dict())
                     else:
-                        values.append(v)
-                params[key] = values
-        return params
+                        params[name] = value
+            return params
 
-    @staticmethod
-    def _is_estimator(config: dict) -> bool:
-        if (len(config) == 2
-            and 'estimator' in config.keys() 
-            and 'params' in config.keys()
-            and isinstance(config['params'], dict)):
-            return True
-        elif (len(config) == 1
-              and 'estimator' in config.keys()
-              and not isinstance(config['estimator'], dict)):
-            return True
-        else: 
-            return False
+        elif isinstance(config, list):
+
+            params = list()
+            for value in config:
+                if isinstance(value, dict):
+                    params.append(self._parse(value))
+                elif isinstance(value, list):
+                    params.append([self._parse(v) for v in value])
+                else:
+                    if exists_estimator(value):
+                        params.append(create_estimator(value, **dict()))
+                    else:
+                        params.append(value)
+            return params
 
