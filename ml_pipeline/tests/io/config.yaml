@@ -1,0 +1,13 @@
+pipeline:
+  steps:
+  -
+    - transformer
+    - column_transformer:
+        transformers:
+        -
+          - norm
+          - normalizer:
+              norm: l1
+          - make_column_selector: 
+                pattern: '*'
+        remainder: passthrough
